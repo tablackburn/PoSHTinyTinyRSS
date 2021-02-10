@@ -4,6 +4,7 @@ implement api calls: setArticleLabel, shareToPublished, subscribeToFeed, unsubsc
 add comment-based help
 break functions into Public and Private
 add Pester tests
+add PSScriptAnalyzerSettings.psd1
 #>
 
 #region load module variables
