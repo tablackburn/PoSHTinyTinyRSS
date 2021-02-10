@@ -1,10 +1,8 @@
 <#
-TODO:
-implement api calls: setArticleLabel, shareToPublished, subscribeToFeed, unsubscribeFeed, unsubscribeFeed, getFeedTree
-add comment-based help
-break functions into Public and Private
-add Pester tests
-add PSScriptAnalyzerSettings.psd1
+TODO implement api calls: setArticleLabel, shareToPublished, subscribeToFeed, unsubscribeFeed, unsubscribeFeed, getFeedTree
+TODO add comment-based help
+TODO break functions into Public and Private
+TODO add Pester tests
 #>
 
 #region load module variables
@@ -121,6 +119,9 @@ function Get-Unread {
 }
 
 function Get-Counters {
+    # suppress the PSUseSingularNouns rule in PSScriptAnalyzer
+    # Get-Counters was chosen to avoid conflicts with the built-in Windows cmdlet Get-Counter
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '')]
     [CmdletBinding()]
     param (
         [switch]
@@ -333,7 +334,7 @@ function Get-Headline {
 }
 
 function Set-Article {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param (
         [Parameter(Mandatory = $true, Position = 0)]
         [int[]]
@@ -396,7 +397,9 @@ function Set-Article {
             $parameters['data'] = $PSBoundParameters.Data
         }
 
-        Invoke-TinyTinyRSSAPI -Method 'updateArticle' -Parameters $parameters
+        if ($PSCmdlet.ShouldProcess($ArticleId)) {
+            Invoke-TinyTinyRSSAPI -Method 'updateArticle' -Parameters $parameters
+        }
     }
 }
 
@@ -419,7 +422,7 @@ function Get-Config {
 }
 
 function Update-Feed {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param (
         [Parameter(Mandatory = $true, Position = 0)]
         [ArgumentCompleter( {
@@ -429,7 +432,9 @@ function Update-Feed {
         $FeedId
     )
 
-    Invoke-TinyTinyRSSAPI -Method 'updateFeed' -Parameters @{ feed_id = $FeedId }
+    if ($PSCmdlet.ShouldProcess($FeedId)) {
+        Invoke-TinyTinyRSSAPI -Method 'updateFeed' -Parameters @{ feed_id = $FeedId }
+    }
 }
 
 function Get-Preference {
@@ -443,7 +448,7 @@ function Get-Preference {
 }
 
 function Set-Read {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param (
         [Parameter(Mandatory = $false, ParameterSetName = 'FeedId')]
         [ArgumentCompleter( {
@@ -474,7 +479,9 @@ function Set-Read {
         $parameters['mode'] = $Mode
     }
 
-    Invoke-TinyTinyRSSAPI -Method 'catchupFeed' -Parameters $parameters
+    if ($PSCmdlet.ShouldProcess($parameters['feed_id'])) {
+        Invoke-TinyTinyRSSAPI -Method 'catchupFeed' -Parameters $parameters
+    }
 }
 
 function Get-Label {
