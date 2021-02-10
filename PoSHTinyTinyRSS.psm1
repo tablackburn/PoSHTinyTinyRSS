@@ -1,6 +1,8 @@
 <#
 TODO:
 implement api calls: setArticleLabel, shareToPublished, subscribeToFeed, unsubscribeFeed, unsubscribeFeed, getFeedTree
+add comment-based help
+break functions into Public and Private
 #>
 
 #region load module variables
