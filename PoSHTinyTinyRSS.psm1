@@ -3,6 +3,7 @@ TODO:
 implement api calls: setArticleLabel, shareToPublished, subscribeToFeed, unsubscribeFeed, unsubscribeFeed, getFeedTree
 add comment-based help
 break functions into Public and Private
+add Pester tests
 #>
 
 #region load module variables
