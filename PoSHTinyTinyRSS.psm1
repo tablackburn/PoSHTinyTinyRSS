@@ -7,23 +7,35 @@ TODO add Pester tests
 
 #region load module variables
 Write-Verbose 'Creating module variables'
-$TinyTinyRSSSession = [ordered]@{
-    Uri         = $null
-    Sid         = $null
-    ContentType = 'application/json'
-    Method      = 'Post'
-    ApiLevel    = $null
+$private:TinyTinyRSSSessionSplat = @{
+    Name        = 'TinyTinyRSSSession'
+    Description = 'Session details about the Tiny Tiny RSS server connection'
+    Scope       = 'Script'
+    Force       = $true
+    Value       = [ordered]@{
+        Uri         = $null
+        Sid         = $null
+        ContentType = 'application/json'
+        Method      = 'Post'
+        ApiLevel    = $null
+    }
 }
-New-Variable -Name 'TinyTinyRSSSession' -Value $TinyTinyRSSSession -Description 'Session details about the Tiny Tiny RSS server connection' -Scope Script -Force
+New-Variable @TinyTinyRSSSessionSplat
 
-$specialFeedIds = @{
-    Starred     = -1
-    Published   = -2
-    Fresh       = -3
-    AllArticles = -4
-    Archived    = 0
+$private:SpecialFeedIdsSplat = @{
+    Name        = 'SpecialFeedIds'
+    Description = 'Special/virtual feed IDs'
+    Scope       = 'Script'
+    Force       = $true
+    Value       = @{
+        Starred     = -1
+        Published   = -2
+        Fresh       = -3
+        AllArticles = -4
+        Archived    = 0
+    }
 }
-New-Variable -Name 'SpecialFeedIds' -Value $specialFeedIds -Description 'Special/virtual feed IDs' -Scope Script -Force
+New-Variable @SpecialFeedIdsSplat
 #endregion load module variables
 
 function Connect-TinyTinyRSS {
@@ -217,7 +229,7 @@ function Get-Category {
 }
 
 function Get-Headline {
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = 'FeedId')]
     param (
         [Parameter(Mandatory = $false, ParameterSetName = 'FeedId')]
         [ArgumentCompleter( {
@@ -241,7 +253,7 @@ function Get-Headline {
         $ShowContent,
         [ValidateSet('all_articles', 'unread', 'adaptive', 'marked', 'updated')]
         [string]
-        $ViewMode = 'adaptive',
+        $ViewMode = 'unread',
         [switch]
         $IncludeAttachments,
         [int]
@@ -259,7 +271,7 @@ function Get-Headline {
         $HasSandbox,
         [switch]
         $IncludeHeader,
-        [Parameter(Mandatory = $true, ParameterSetName = 'Feed')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Feed')]
         [ArgumentCompleter( {
                 (Get-Feed).title
             })]
@@ -283,6 +295,10 @@ function Get-Headline {
     elseif ($PSBoundParameters.ContainsKey('Feed')) {
         $parameters['feed_id'] = (Get-Feed | Where-Object title -EQ $Feed).id
     }
+    else {
+        # if no FeedId, CategoryId or Feed is provided, default to the "all articles" special feed ID
+        $parameters['feed_id'] = -4
+    }
     if ($PSBoundParameters.ContainsKey('Limit')) {
         $parameters['limit'] = $Limit
     }
@@ -295,9 +311,7 @@ function Get-Headline {
     if ($PSBoundParameters.ContainsKey('ShowContent')) {
         $parameters['show_content'] = $true
     }
-    if ($PSBoundParameters.ContainsKey('ViewMode')) {
-        $parameters['view_mode'] = $ViewMode
-    }
+    $parameters['view_mode'] = $ViewMode
     if ($PSBoundParameters.ContainsKey('IncludeAttachments')) {
         $parameters['include_attachments'] = $true
     }
@@ -325,12 +339,37 @@ function Get-Headline {
     if ($PSBoundParameters.ContainsKey('Search')) {
         $parameters['search'] = $Search
     }
+    # TODO: convert this into a dynamic parameter
     if ($PSBoundParameters.ContainsKey('SearchMode')) {
-        $parameters['search_mode'] = $SearchMode # TODO: convert this into a dynamic parameter
+        $parameters['search_mode'] = $SearchMode
     }
 
-    $result = Invoke-TinyTinyRSSAPI -Method 'getHeadlines' -Parameters $parameters
-    $result | Select-Object -Property *, @{Name = 'updated'; Expression = { (Get-Date -Date '1970-01-01 00:00:00Z').AddSeconds($_.updated) } } -ExcludeProperty updated
+    $result = @()
+    $apiResult = Invoke-TinyTinyRSSAPI -Method 'getHeadlines' -Parameters $parameters
+    $result += $apiResult | Select-Object -ExcludeProperty updated -Property *, @{
+        Name       = 'updated'
+        Expression = {
+            (Get-Date -Date '1970-01-01 00:00:00Z').AddSeconds($_.updated)
+        }
+    }
+    <#
+     # if no limit was provided and the view mode is not adaptive, paginate
+     # if a limit was provided, honor that limit
+     # if the view mode is adaptive, skip pagination because all articles will be retrieved which could be large
+     #>
+    if ($PSBoundParameters.ContainsKey('Limit') -eq $false -and $ViewMode -ne 'adaptive') {
+        do {
+            $parameters['skip'] += 200
+            $apiResult = Invoke-TinyTinyRSSAPI -Method 'getHeadlines' -Parameters $parameters
+            $result += $apiResult | Select-Object -ExcludeProperty updated -Property *, @{
+                Name       = 'updated'
+                Expression = {
+                    (Get-Date -Date '1970-01-01 00:00:00Z').AddSeconds($_.updated)
+                }
+            }
+        } until ($apiResult.Count -lt 200)
+    }
+    return $result
 }
 
 function Set-Article {
@@ -406,7 +445,8 @@ function Set-Article {
 function Get-Article {
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory = $true, Position = 0)]
+        [Parameter(Mandatory = $true,
+            Position = 0)]
         [int]
         $ArticleId
     )
@@ -501,7 +541,7 @@ function Get-Label {
 }
 
 function Get-SpecialFeed {
-    $specialFeedIds
+    $SpecialFeedIds
 }
 
 # Export only the functions using PowerShell standard verb-noun naming.
